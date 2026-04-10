@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Region Analysis — WeatherScope{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-header">
+    <h1>Region <span>Analysis</span></h1>
+    <p>City-wise comparison of temperature and rainfall across India — 2024</p>
+  </div>
+
+  <!-- Stat highlight cards -->
+  <div class="stat-cards" id="regionCards">
+    <div class="loader" style="grid-column:1/-1"><div class="spinner"></div> Loading…</div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-box">
+      <h3>📊 Average Temperature by City (°C)</h3>
+      <canvas id="tempBarChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>🌧 Rainfall Distribution (%)</h3>
+      <canvas id="rainPieChart"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-box">
+      <h3>🔺 Max vs Min Temperature by City</h3>
+      <canvas id="maxMinChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>💧 Average Humidity by City (%)</h3>
+      <canvas id="humidityChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Data table -->
+  <p class="section-title">📋 Full Region Data</p>
+  <div class="table-wrap">
+    <table id="regionTable">
+      <thead>
+        <tr>
+          <th>City</th>
+          <th>Mean Temp (°C)</th>
+          <th>Max Temp (°C)</th>
+          <th>Min Temp (°C)</th>
+          <th>Total Rainfall (mm)</th>
+          <th>Mean Humidity (%)</th>
+        </tr>
+      </thead>
+      <tbody id="regionTbody">
+        <tr><td colspan="6"><div class="loader"><div class="spinner"></div> Loading…</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const COLORS = {
+  Nagpur:    '#ff4757',
+  Mumbai:    '#3b9eff',
+  Delhi:     '#ffd166',
+  Pune:      '#00d68f',
+  Bangalore: '#ff6b35'
+};
+
+fetch('/api/region').then(r => r.json()).then(data => {
+
+  const cities  = data.map(d => d.city);
+  const colors  = cities.map(c => COLORS[c] || '#888');
+
+  // ── Cards ──
+  const hottest  = data.reduce((a,b) => a.mean_temp > b.mean_temp ? a : b);
+  const coldest  = data.reduce((a,b) => a.mean_temp < b.mean_temp ? a : b);
+  const rainiest = data.reduce((a,b) => a.total_rainfall > b.total_rainfall ? a : b);
+  const humid    = data.reduce((a,b) => a.mean_humidity > b.mean_humidity ? a : b);
+
+  document.getElementById('regionCards').innerHTML = `
+    <div class="stat-card red">
+      <div class="label">🔥 Hottest City</div>
+      <div class="value">${hottest.city}</div>
+      <div class="sub">Avg ${hottest.mean_temp}°C · Max ${hottest.max_temp}°C</div>
+    </div>
+    <div class="stat-card blue" style="--blue:#7ecfff">
+      <div class="label">❄ Coolest City</div>
+      <div class="value">${coldest.city}</div>
+      <div class="sub">Avg ${coldest.mean_temp}°C · Min ${coldest.min_temp}°C</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">🌧 Rainiest City</div>
+      <div class="value">${rainiest.city}</div>
+      <div class="sub">${rainiest.total_rainfall} mm total</div>
+    </div>
+    <div class="stat-card sun">
+      <div class="label">💧 Most Humid</div>
+      <div class="value">${humid.city}</div>
+      <div class="sub">Avg ${humid.mean_humidity}% humidity</div>
+    </div>
+  `;
+
+  // Chart defaults
+  Chart.defaults.color = '#7a92b8';
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  const gridColor = 'rgba(30,58,106,0.5)';
+
+  // ── Bar: Avg Temp ──
+  new Chart(document.getElementById('tempBarChart'), {
+    type: 'bar',
+    data: {
+      labels: cities,
+      datasets: [{
+        label: 'Avg Temp (°C)',
+        data: data.map(d => d.mean_temp),
+        backgroundColor: colors.map(c => c + 'cc'),
+        borderColor: colors,
+        borderWidth: 2,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, beginAtZero: false }
+      }
+    }
+  });
+
+  // ── Pie: Rainfall ──
+  new Chart(document.getElementById('rainPieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cities,
+      datasets: [{
+        data: data.map(d => d.total_rainfall),
+        backgroundColor: colors.map(c => c + 'cc'),
+        borderColor: '#0a1628',
+        borderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: 'right', labels: { padding: 16, boxWidth: 12 } }
+      },
+      cutout: '62%',
+    }
+  });
+
+  // ── Grouped Bar: Max/Min ──
+  new Chart(document.getElementById('maxMinChart'), {
+    type: 'bar',
+    data: {
+      labels: cities,
+      datasets: [
+        {
+          label: 'Max Temp',
+          data: data.map(d => d.max_temp),
+          backgroundColor: 'rgba(255,71,87,0.75)',
+          borderColor: '#ff4757',
+          borderWidth: 2,
+          borderRadius: 5,
+        },
+        {
+          label: 'Min Temp',
+          data: data.map(d => d.min_temp),
+          backgroundColor: 'rgba(126,207,255,0.75)',
+          borderColor: '#7ecfff',
+          borderWidth: 2,
+          borderRadius: 5,
+        }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { padding: 16, boxWidth: 12 } } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, beginAtZero: false }
+      }
+    }
+  });
+
+  // ── Bar: Humidity ──
+  new Chart(document.getElementById('humidityChart'), {
+    type: 'bar',
+    data: {
+      labels: cities,
+      datasets: [{
+        label: 'Avg Humidity (%)',
+        data: data.map(d => d.mean_humidity),
+        backgroundColor: 'rgba(0,214,143,0.6)',
+        borderColor: '#00d68f',
+        borderWidth: 2,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, min: 0, max: 100 }
+      }
+    }
+  });
+
+  // ── Table ──
+  const tbody = document.getElementById('regionTbody');
+  tbody.innerHTML = data.map(d => `
+    <tr>
+      <td class="city">${d.city}</td>
+      <td>${d.mean_temp}</td>
+      <td class="hot">${d.max_temp}</td>
+      <td class="cold">${d.min_temp}</td>
+      <td class="rain">${d.total_rainfall}</td>
+      <td class="hum">${d.mean_humidity}%</td>
+    </tr>
+  `).join('');
+});
+</script>
+{% endblock %}

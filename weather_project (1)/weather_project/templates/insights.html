@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Insights — WeatherScope{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-header">
+    <h1>Smart <span>Insights</span></h1>
+    <p>Key highlights, trend analysis, and temperature prediction — 2024</p>
+  </div>
+
+  <!-- Key Highlights -->
+  <p class="section-title">⭐ Key Highlights</p>
+  <div class="stat-cards" id="highlightCards">
+    <div class="loader" style="grid-column:1/-1"><div class="spinner"></div> Loading…</div>
+  </div>
+
+  <!-- City / Month pills -->
+  <div id="pillRow" style="margin-bottom:2rem"></div>
+
+  <!-- Trend chart -->
+  <p class="section-title">📈 Temperature Trend (All Cities Combined)</p>
+  <div class="chart-box" style="margin-bottom:1.5rem">
+    <h3>Actual Temperatures vs Moving Average (5-point window)</h3>
+    <canvas id="trendChart" style="max-height:320px"></canvas>
+  </div>
+
+  <!-- Prediction chart -->
+  <p class="section-title">🔮 Linear Trend Prediction</p>
+  <div class="chart-box" style="margin-bottom:1.5rem">
+    <h3>Actual Temperatures + Predicted Next 3 Data Points</h3>
+    <canvas id="predChart" style="max-height:300px"></canvas>
+  </div>
+
+  <!-- Summary -->
+  <p class="section-title">📝 Summary</p>
+  <div class="summary-box" id="summaryBox">
+    <div class="loader"><div class="spinner"></div> Loading…</div>
+  </div>
+
+</div>
+
+<script>
+fetch('/api/insights').then(r => r.json()).then(d => {
+
+  Chart.defaults.color = '#7a92b8';
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  const gridColor = 'rgba(30,58,106,0.5)';
+
+  // ── Highlight Cards ──
+  document.getElementById('highlightCards').innerHTML = `
+    <div class="stat-card red">
+      <div class="label">🔥 Hottest Day</div>
+      <div class="value">${d.hottest_day.temp}°C</div>
+      <div class="sub">${d.hottest_day.city} · ${d.hottest_day.date}</div>
+    </div>
+    <div class="stat-card blue" style="--blue:#7ecfff">
+      <div class="label">❄ Coldest Day</div>
+      <div class="value">${d.coldest_day.temp}°C</div>
+      <div class="sub">${d.coldest_day.city} · ${d.coldest_day.date}</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">🌧 Rainiest Day</div>
+      <div class="value">${d.rainiest_day.rain}<span style="font-size:1rem"> mm</span></div>
+      <div class="sub">${d.rainiest_day.city} · ${d.rainiest_day.date}</div>
+    </div>
+    <div class="stat-card orange">
+      <div class="label">🏙 Hottest City (avg)</div>
+      <div class="value">${d.hottest_city}</div>
+      <div class="sub">Highest mean temperature</div>
+    </div>
+  `;
+
+  // ── Pills ──
+  const pills = [
+    `🔆 Hottest Month: ${d.hottest_month}`,
+    `🌧 Rainiest Month: ${d.rainiest_month}`,
+    `❄ Coolest Month: ${d.coldest_month}`,
+    `🏙 Rainiest City: ${d.rainiest_city}`,
+    `🧊 Coolest City: ${d.coldest_city}`,
+  ];
+  document.getElementById('pillRow').innerHTML = pills.map(p =>
+    `<span class="insight-pill">${p}</span>`
+  ).join('');
+
+  // ── Trend Chart ──
+  // Show every 5th point label to avoid clutter
+  const trendLabels = d.trend_dates.map((date, i) => i % 5 === 0 ? date.slice(5) : '');
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: trendLabels,
+      datasets: [
+        {
+          label: 'Actual Temp (°C)',
+          data: d.trend_temps,
+          borderColor: 'rgba(59,158,255,0.5)',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          pointRadius: 2,
+          tension: 0.2,
+        },
+        {
+          label: 'Moving Avg (°C)',
+          data: d.moving_avg,
+          borderColor: '#ff4757',
+          backgroundColor: 'rgba(255,71,87,0.05)',
+          borderWidth: 2.5,
+          pointRadius: 0,
+          tension: 0.5,
+          fill: true,
+        }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { padding: 16, boxWidth: 12 } } },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { maxRotation: 45 } },
+        y: { grid: { color: gridColor }, beginAtZero: false }
+      }
+    }
+  });
+
+  // ── Prediction Chart ──
+  const last20Temps  = d.trend_temps.slice(-20);
+  const last20Dates  = d.trend_dates.slice(-20).map(dt => dt.slice(5));
+  const predLabels   = [...last20Dates, 'P+1', 'P+2', 'P+3'];
+  const actualLine   = [...last20Temps, null, null, null];
+  const predLine     = [...Array(last20Temps.length).fill(null), ...d.predicted];
+  // join the lines at the last actual point
+  predLine[last20Temps.length - 1] = last20Temps[last20Temps.length - 1];
+
+  new Chart(document.getElementById('predChart'), {
+    type: 'line',
+    data: {
+      labels: predLabels,
+      datasets: [
+        {
+          label: 'Actual Temp (°C)',
+          data: actualLine,
+          borderColor: '#3b9eff',
+          backgroundColor: 'rgba(59,158,255,0.08)',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          tension: 0.35,
+          fill: true,
+        },
+        {
+          label: 'Predicted (°C)',
+          data: predLine,
+          borderColor: '#ff6b35',
+          backgroundColor: 'rgba(255,107,53,0.1)',
+          borderWidth: 2.5,
+          borderDash: [8, 4],
+          pointRadius: 5,
+          pointBackgroundColor: '#ff6b35',
+          tension: 0.3,
+          fill: true,
+        }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { padding: 16, boxWidth: 12 } } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, beginAtZero: false }
+      }
+    }
+  });
+
+  // ── Summary ──
+  document.getElementById('summaryBox').innerHTML = `
+    <h3>📋 Analysis Summary — 2024</h3>
+    <p>
+      Weather data across <strong>5 major Indian cities</strong> (Nagpur, Mumbai, Delhi, Pune, Bangalore)
+      reveals clear seasonal patterns throughout 2024.
+      <strong>${d.hottest_city}</strong> recorded the highest average temperatures, peaking at
+      <strong>${d.hottest_day.temp}°C</strong> on ${d.hottest_day.date}.
+      Meanwhile <strong>${d.coldest_day.city}</strong> dropped to a low of
+      <strong>${d.coldest_day.temp}°C</strong> on ${d.coldest_day.date}.
+      The monsoon season drove rainfall to its peak in <strong>${d.rainiest_month}</strong>,
+      with <strong>${d.rainiest_city}</strong> receiving the most total rainfall across the year.
+      A linear trend analysis predicts temperatures of approximately
+      <strong>${d.predicted.join('°C, ')}°C</strong> for the next three data points,
+      consistent with typical post-monsoon cooling in Indian metros.
+    </p>
+  `;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Monthly Analysis — WeatherScope{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-header">
+    <h1>Monthly <span>Analysis</span></h1>
+    <p>Month-by-month temperature and rainfall trends across all cities — 2024</p>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stat-cards" id="monthlyCards">
+    <div class="loader" style="grid-column:1/-1"><div class="spinner"></div> Loading…</div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-box" style="margin-bottom:1.5rem">
+    <h3>🌡 Monthly Average Temperature — All Cities (°C)</h3>
+    <canvas id="tempLineChart" style="max-height:300px"></canvas>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-box">
+      <h3>🌧 Total Rainfall per Month (mm)</h3>
+      <canvas id="rainBarChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>💧 Average Humidity per Month (%)</h3>
+      <canvas id="humLineChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <p class="section-title">📋 Full Monthly Data</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Mean Temp (°C)</th>
+          <th>Max Temp (°C)</th>
+          <th>Min Temp (°C)</th>
+          <th>Total Rainfall (mm)</th>
+          <th>Mean Humidity (%)</th>
+        </tr>
+      </thead>
+      <tbody id="monthTbody">
+        <tr><td colspan="6"><div class="loader"><div class="spinner"></div> Loading…</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+fetch('/api/monthly').then(r => r.json()).then(data => {
+
+  const months  = data.map(d => d.month.slice(0,3));
+  const gridColor = 'rgba(30,58,106,0.5)';
+  Chart.defaults.color = '#7a92b8';
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
+
+  const hottest  = data.reduce((a,b) => a.mean_temp > b.mean_temp ? a : b);
+  const coldest  = data.reduce((a,b) => a.mean_temp < b.mean_temp ? a : b);
+  const rainiest = data.reduce((a,b) => a.total_rainfall > b.total_rainfall ? a : b);
+  const driest   = data.reduce((a,b) => a.total_rainfall < b.total_rainfall ? a : b);
+
+  document.getElementById('monthlyCards').innerHTML = `
+    <div class="stat-card red">
+      <div class="label">🔥 Hottest Month</div>
+      <div class="value">${hottest.month.slice(0,3)}</div>
+      <div class="sub">Avg ${hottest.mean_temp}°C · Max ${hottest.max_temp}°C</div>
+    </div>
+    <div class="stat-card blue" style="--blue:#7ecfff">
+      <div class="label">❄ Coolest Month</div>
+      <div class="value">${coldest.month.slice(0,3)}</div>
+      <div class="sub">Avg ${coldest.mean_temp}°C · Min ${coldest.min_temp}°C</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">🌧 Rainiest Month</div>
+      <div class="value">${rainiest.month.slice(0,3)}</div>
+      <div class="sub">${rainiest.total_rainfall} mm</div>
+    </div>
+    <div class="stat-card sun">
+      <div class="label">☀ Driest Month</div>
+      <div class="value">${driest.month.slice(0,3)}</div>
+      <div class="sub">${driest.total_rainfall} mm rainfall</div>
+    </div>
+  `;
+
+  // Line: Temperature
+  new Chart(document.getElementById('tempLineChart'), {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Avg Temp (°C)',
+        data: data.map(d => d.mean_temp),
+        borderColor: '#ff4757',
+        backgroundColor: 'rgba(255,71,87,0.1)',
+        borderWidth: 3,
+        pointBackgroundColor: '#ff4757',
+        pointRadius: 5,
+        tension: 0.4,
+        fill: true,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, beginAtZero: false }
+      }
+    }
+  });
+
+  // Bar: Rainfall
+  new Chart(document.getElementById('rainBarChart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Rainfall (mm)',
+        data: data.map(d => d.total_rainfall),
+        backgroundColor: months.map((m,i) => {
+          const val = data[i].total_rainfall;
+          return val > 300 ? 'rgba(59,158,255,0.9)' : val > 100 ? 'rgba(59,158,255,0.6)' : 'rgba(59,158,255,0.35)';
+        }),
+        borderColor: '#3b9eff',
+        borderWidth: 2,
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, beginAtZero: true }
+      }
+    }
+  });
+
+  // Line: Humidity
+  new Chart(document.getElementById('humLineChart'), {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Avg Humidity (%)',
+        data: data.map(d => d.mean_humidity),
+        borderColor: '#00d68f',
+        backgroundColor: 'rgba(0,214,143,0.08)',
+        borderWidth: 3,
+        pointBackgroundColor: '#00d68f',
+        pointRadius: 5,
+        tension: 0.4,
+        fill: true,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, min: 0, max: 100 }
+      }
+    }
+  });
+
+  // Table
+  const maxTemp = Math.max(...data.map(d => d.max_temp));
+  const maxRain = Math.max(...data.map(d => d.total_rainfall));
+  document.getElementById('monthTbody').innerHTML = data.map(d => `
+    <tr>
+      <td class="city">${d.month}</td>
+      <td>${d.mean_temp}</td>
+      <td class="${d.max_temp === maxTemp ? 'hot' : ''}">${d.max_temp}</td>
+      <td class="cold">${d.min_temp}</td>
+      <td class="${d.total_rainfall === maxRain ? 'hot' : 'rain'}">${d.total_rainfall}</td>
+      <td class="hum">${d.mean_humidity}%</td>
+    </tr>
+  `).join('');
+});
+</script>
+{% endblock %}

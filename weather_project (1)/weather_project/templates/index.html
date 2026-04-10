@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}WeatherScope — India Weather Dashboard{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <!-- Hero -->
+  <div class="hero">
+    <p class="hero-eyebrow">🌏 India — 2024 Weather Analysis</p>
+    <h1>Track the <span class="highlight">Climate</span><br>Understand the Patterns</h1>
+    <p>Analyse temperature, rainfall, and humidity across India's major cities with smart insights and trend predictions.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="/region">📍 Region Analysis</a>
+      <a class="btn btn-outline" href="/insights">⭐ View Insights</a>
+    </div>
+  </div>
+
+  <!-- Animated data ticker -->
+  <div class="ticker-row" id="ticker"></div>
+
+  <!-- Feature cards -->
+  <div class="features-grid">
+    <div class="feature-card">
+      <span class="icon">🌍</span>
+      <h3>Region Analysis</h3>
+      <p>Compare mean, max, and min temperatures across Nagpur, Mumbai, Delhi, Pune, and Bangalore with interactive charts.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📅</span>
+      <h3>Monthly Trends</h3>
+      <p>See how temperature and rainfall evolve month by month. Spot monsoon spikes and summer peaks instantly.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">⭐</span>
+      <h3>Smart Insights</h3>
+      <p>Hottest day, rainiest day, seasonal summaries, moving-average trend lines, and a linear prediction for future temps.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">📊</span>
+      <h3>Rich Visualisations</h3>
+      <p>Bar charts, line charts, and pie charts — all powered by Chart.js with a clean, consistent colour system.</p>
+    </div>
+  </div>
+
+  <!-- Quick stats strip -->
+  <div class="stat-cards" style="margin-top:2.5rem;" id="quickStats">
+    <div class="loader"><div class="spinner"></div> Loading stats…</div>
+  </div>
+
+</div>
+
+<script>
+// Ticker
+const cities = ["Nagpur","Mumbai","Delhi","Pune","Bangalore"];
+const emojis = ["🔆","🌊","❄️","🌤","🌿"];
+const holder = document.getElementById('ticker');
+const items = [];
+cities.forEach((c,i) => {
+  const el = document.createElement('div');
+  el.className = 'ticker-item';
+  el.innerHTML = `<span class="dot"></span>${emojis[i]} ${c}`;
+  items.push(el);
+});
+// duplicate for seamless loop
+[...items,...items].forEach(el => holder.appendChild(el.cloneNode(true)));
+
+// Quick stats from API
+fetch('/api/region').then(r=>r.json()).then(data => {
+  const box = document.getElementById('quickStats');
+  const hottest = data.reduce((a,b) => a.mean_temp > b.mean_temp ? a : b);
+  const coldest = data.reduce((a,b) => a.mean_temp < b.mean_temp ? a : b);
+  const rainiest = data.reduce((a,b) => a.total_rainfall > b.total_rainfall ? a : b);
+  const totalRain = data.reduce((s,c) => s + c.total_rainfall, 0);
+  box.innerHTML = `
+    <div class="stat-card red">
+      <div class="label">Hottest City</div>
+      <div class="value">${hottest.city}</div>
+      <div class="sub">Avg ${hottest.mean_temp}°C</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="label">Coolest City</div>
+      <div class="value">${coldest.city}</div>
+      <div class="sub">Avg ${coldest.mean_temp}°C</div>
+    </div>
+    <div class="stat-card green" style="--green:#3b9eff">
+      <div class="label">Highest Rainfall</div>
+      <div class="value">${rainiest.city}</div>
+      <div class="sub">${rainiest.total_rainfall} mm total</div>
+    </div>
+    <div class="stat-card sun">
+      <div class="label">Total Rain (all cities)</div>
+      <div class="value">${totalRain.toFixed(0)}<span style="font-size:1rem"> mm</span></div>
+      <div class="sub">Across 5 cities · 2024</div>
+    </div>
+  `;
+});
+</script>
+{% endblock %}

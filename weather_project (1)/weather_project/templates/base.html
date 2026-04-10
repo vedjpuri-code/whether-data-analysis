@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}WeatherScope{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="nav-brand" href="/">
+    <span class="logo-icon">⛅</span> WeatherScope
+  </a>
+  <ul class="nav-links">
+    <li><a href="/" {% if request.path == '/' %}class="active"{% endif %}>Home</a></li>
+    <li><a href="/region" {% if request.path == '/region' %}class="active"{% endif %}>Region</a></li>
+    <li><a href="/monthly" {% if request.path == '/monthly' %}class="active"{% endif %}>Monthly</a></li>
+    <li><a href="/insights" {% if request.path == '/insights' %}class="active"{% endif %}>Insights</a></li>
+  </ul>
+</nav>
+
+{% block content %}{% endblock %}
+
+</body>
+</html>
